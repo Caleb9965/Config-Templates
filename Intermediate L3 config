@@ -1,0 +1,284 @@
+## Basic Setup
+```
+en
+conf t
+hostname <Hostname>
+enable secret <security>
+username <security> secret <security>
+line con 0
+logging synch
+login local
+exec-timeout 0 0 !Optional: Disable console timeout
+line vty 0 4
+logging synch
+login local
+exec-timeout 0 0 !Optional: Disable VTY timeout
+transport input ssh !Recommended: Limit VTY to SSH
+service password-encryption !Encrypt passwords
+ip routing !Enable IP Routing - L3 Switch Functionality
+!
+banner motd ^C
+******************************************************************
+*            Unauthorized Access is Prohibited!                  *
+*                                                                *
+*            System maintained by <Your Organization>             *
+******************************************************************^C
+!
+interface vlan 1
+no ip address !Remove IP from default VLAN
+no shut
+exit
+!
+ip default-gateway <Gateway IP> !Required for Out-of-Band Management
+ip domain-lookup !Enable DNS lookup (optional but helpful)
+!
+logging buffered 4096 debugging !Increase buffer size for logging
+logging console informational !Set console logging level
+!
+clock timezone <Timezone> <Offset from UTC> !e.g., clock timezone EST -5
+ntp server <NTP Server IP> !Configure NTP Server
+!
+cdp run !Enable CDP Globally (Optional, but recommended for Cisco environments)
+lldp run !Enable LLDP Globally (Optional, good for multi-vendor environments)
+!
+errdisable recovery cause all !Enable errdisable recovery for all causes
+errdisable recovery interval 30 !Set recovery interval (seconds)
+!
+end
+wr mem
+!
+```
+
+## Spanning Tree Configuration
+```
+! --- Global Spanning Tree Settings ---
+spanning-tree mode rapid-pvst !Recommended: Rapid PVST+ for faster convergence
+!Other STP Modes (Choose ONE globally):
+!spanning-tree mode pvst !PVST+ (Per-VLAN Spanning Tree Plus) - Default, slower convergence
+!spanning-tree mode mst  !MST (Multiple Spanning Tree) - For complex VLAN structures
+
+spanning-tree extend system-id !Recommended for Rapid PVST+ - Improves convergence in some scenarios
+spanning-tree portfast bpduguard default !Apply BPDU Guard globally to PortFast enabled ports
+spanning-tree portfast bpdufilter default !Apply BPDU Filter globally to PortFast enabled ports - Use with Caution!
+
+! --- Root Bridge Configuration (Configure on your Root Switch for each VLAN) ---
+!spanning-tree vlan <VLAN ID> root primary !Set this switch as the primary root for VLAN <VLAN ID>
+!spanning-tree vlan <VLAN ID> root secondary !Set this switch as the secondary root for VLAN <VLAN ID>
+
+! --- Spanning Tree Timers (Generally not needed, adjust with caution) ---
+!spanning-tree vlan <VLAN ID> hello-time <seconds> !Default 2 seconds
+!spanning-tree vlan <VLAN ID> forward-delay <seconds> !Default 15 seconds
+!spanning-tree vlan <VLAN ID> max-age <seconds> !Default 20 seconds
+
+! --- Verification Commands ---
+!show spanning-tree summary !Summary of STP status per VLAN
+!show spanning-tree vlan <VLAN ID> !Detailed STP information for a specific VLAN
+!show spanning-tree interface <interface> detail !STP details for a specific interface
+!show spanning-tree root !Displays Root Bridge information for each VLAN
+!show spanning-tree blockedports !Displays interfaces in blocking state
+!
+```
+
+## Per VLAN
+```
+vlan <VLAN ID>
+name <Name>
+exit
+!
+```
+
+## Per SVI (Switch Virtual Interface) - Layer 3 Interface for VLAN Routing
+```
+interface vlan <VLAN ID>
+description SVI_for_VLAN_<VLAN ID>_<VLAN Name> !Descriptive SVI name
+ip address <IP> <Subnet>
+no shut !Enable SVI - Enables inter-VLAN routing for this VLAN
+!Optional - Configure HSRP/VRRP for SVI redundancy if needed
+!standby version 2
+!standby <group-number> ip <virtual-ip>
+!standby <group-number> priority <priority-value>
+!standby <group-number> preempt
+!standby <group-number> track <interface> decrement <value>
+exit
+!
+```
+
+## PER ACCESS Port - Layer 2 Access Port
+```
+interface <interface>
+description <desc>
+switchport mode access
+switchport access vlan <vlan>
+spanning-tree portfast !Enable PortFast on access ports - IMPORTANT for end-devices
+spanning-tree bpduguard enable !Enable BPDU Guard on access ports - Prevents loops from rogue devices
+channel-group auto mode desirable !Disable Port-channel negotiation for single ports
+no negotiation auto !Disable DTP negotiation for security
+shut
+no shutdown !Ensure port is enabled
+exit
+!
+```
+
+## PER TRUNK Port - Layer 2 Trunk Port
+```
+interface <interface>
+description <Description>
+switchport trunk encapsulation dot1q !Explicitly set encapsulation
+switchport trunk allowed vlan <VLAN ID>,<VLAN ID>
+switchport mode trunk
+!no spanning-tree portfast !PortFast should NOT be enabled on trunk ports - Remove if present
+no shutdown !Ensure port is enabled
+exit
+!
+```
+
+## PER ROUTED Port - Layer 3 Interface on Physical Port
+```
+interface <interface>
+description Uplink_to_<Router/Firewall/L3_Device> !Descriptive name
+no switchport !Disable switchport - Makes it a routed interface
+ip address <IP> <Subnet>
+no shutdown !Enable interface
+!Optional - Configure routing protocol on this interface (see routing sections below)
+exit
+!
+```
+
+## If auto duplex failure
+```
+conf t
+interface <port>
+no negotiation auto
+duplex <full|auto> !Specify desired duplex, 'full' is typically preferred
+speed <10|100|1000|10000|auto> !Specify speed if needed
+exit
+```
+
+## Port Channels - LACP or Etherchannel
+```
+interface port-channel <ID>
+description Uplink_to_<Distribution/Core_Switch> !Descriptive Port-Channel description
+switchport trunk encapsulation dot1q !If L2 Port-channel
+switchport mode trunk         !If L2 Port-channel
+switchport trunk allowed vlan <VLAN ID>,<VLAN ID> !If L2 Port-channel
+!OR
+!no switchport              !If L3 Port-channel - Make it a routed interface
+!ip address <IP> <Subnet>    !If L3 Port-channel
+
+!Optional LACP settings for Port-Channels
+!port-channel lacp system-priority <1-65535>
+!port-channel lacp port-priority <1-65535>
+exit
+!
+interface range <INT range> !e.g., interface range Gi1/0/1-2
+description Member_of_Port-Channel_<ID>
+switchport trunk encapsulation dot1q !If L2 Member
+switchport mode trunk         !If L2 Member
+switchport trunk allowed vlan <VLAN ID>,<VLAN ID> !If L2 Member
+!OR
+!no switchport              !If L3 Member
+channel-group <ID> mode active !LACP Active Mode (recommended) or Passive
+no shutdown !Ensure ports are enabled
+exit
+!
+```
+
+## Static Routing
+```
+ip route <destination_network> <mask> <next_hop_ip_or_interface>
+!Example:
+!ip route 0.0.0.0 0.0.0.0 <Gateway IP> !Default route
+!ip route 192.168.10.0 255.255.255.0 GigabitEthernet1/1 !Route to specific network via interface
+!
+! --- Verification ---
+!show ip route static !Show static routes
+!show ip route <destination_network> !Check route for a specific network
+!
+```
+
+## OSPF Routing Configuration (Example)
+```
+router ospf 1 !Process ID - Local significance
+router-id <Router-ID_IP_Address> !Recommended: Use Loopback IP
+!Example: router-id 192.168.255.1
+
+! --- Network statements - Define interfaces participating in OSPF ---
+network <network_address> <wildcard_mask> area <area_id>
+!Example Network Statements:
+!network 10.0.0.0 0.255.255.255 area 0 !Area 0 for 10.0.0.0/8 range
+!network 192.168.1.0 0.0.0.255 area 1 !Area 1 for 192.168.1.0/24
+
+! --- Interface Specific OSPF Settings (Optional) ---
+!interface <interface>
+!ip ospf network point-to-point !For point-to-point links (e.g., P2P WAN)
+!ip ospf hello-interval <seconds> !Adjust Hello interval (default 10 sec)
+!ip ospf dead-interval <seconds>  !Adjust Dead interval (default 40 sec)
+!ip ospf priority <0-255>       !Adjust OSPF priority for DR/BDR election
+!exit
+
+! --- Verification ---
+!show ip ospf neighbor !OSPF neighbor status
+!show ip ospf interface !OSPF status per interface
+!show ip ospf route     !OSPF learned routes
+!show ip route ospf     !OSPF routes in routing table
+!
+```
+
+## EIGRP Routing Configuration (Example)
+```
+router eigrp <AS_Number> !Autonomous System Number
+!Example: router eigrp 100
+network <network_address> <wildcard_mask> !Define networks to advertise and participate in EIGRP
+!Example Network Statements:
+!network 10.0.0.0 0.255.255.255
+!network 192.168.2.0 0.0.0.255
+no auto-summary !Recommended: Disable auto-summary for better route control
+eigrp router-id <Router-ID_IP_Address> !Recommended: Use Loopback IP
+!Example: eigrp router-id 192.168.255.1
+
+! --- Interface Specific EIGRP Settings (Optional) ---
+!interface <interface>
+!ip hello-interval eigrp <AS_Number> <seconds> !Adjust Hello interval
+!ip hold-time eigrp <AS_Number> <seconds>    !Adjust Hold time
+!ip summary-address eigrp <AS_Number> <network> <mask> !Manual summarization
+!exit
+
+! --- Verification ---
+!show eigrp neighbors !EIGRP neighbor status
+!show ip eigrp topology !EIGRP topology table
+!show ip route eigrp     !EIGRP routes in routing table
+!
+```
+
+## BGP Routing Configuration (Example - eBGP to ISP)
+```
+router bgp <AS_Number> !Autonomous System Number
+!Example: router bgp 65001
+bgp router-id <Router-ID_IP_Address> !Recommended: Use Loopback IP
+!Example: bgp router-id 192.168.255.1
+
+! --- Neighbor Configuration (eBGP to ISP) ---
+neighbor <ISP_Peer_IP> remote-as <ISP_AS_Number>
+!Example: neighbor 203.0.113.2 remote-as 65000
+neighbor <ISP_Peer_IP> description Uplink_to_ISP
+neighbor <ISP_Peer_IP> update-source <Local_Interface> !Usually the interface facing the ISP
+!Example: neighbor 203.0.113.2 update-source GigabitEthernet1/1
+!Optional - BGP Peering Authentication
+!neighbor <ISP_Peer_IP> password <password>
+
+! --- Network Advertisement (Advertise your public prefixes) ---
+network <your_public_network> mask <mask>
+!Example: network 203.0.113.0 mask 255.255.255.0
+
+! --- Default Route from ISP (if applicable) ---
+!address-family ipv4 unicast
+! neighbor <ISP_Peer_IP> default-originate  !If ISP provides default route
+! exit-address-family
+
+! --- Verification ---
+!show bgp summary !BGP neighbor status and table summary
+!show bgp neighbors <ISP_Peer_IP> advertised-routes !Routes advertised to neighbor
+!show bgp neighbors <ISP_Peer_IP> received-routes  !Routes received from neighbor
+!show ip route bgp     !BGP routes in routing table
+!
+```

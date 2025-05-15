@@ -83,11 +83,3 @@ switchport trunk allowed vlan <ID,ID>
 Channel-group <ID> mode <active|passive>
 !
 ```
-
-test
-
-Testx23
-!
-!
-!
-!

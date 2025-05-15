@@ -1,2 +1,1 @@
-# Config-Templates
-My Private set of config templates.
+# Please note that these will be updated as I see fit.

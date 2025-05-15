@@ -1,0 +1,85 @@
+# L2 Switch
+## Basic setup
+```
+en
+conf t
+hostname <Hostname>
+enable secret <security>
+username <security> secret <security>
+line con 0
+logging synch
+login local
+line vty 0 4 
+logging synch
+login local
+no ip routing
+exit
+wr mem
+!
+```
+## Per VLAN
+```
+vlan <VLAN ID>
+name <Name>
+exit
+!
+```
+## Per SVI
+```
+interface vlan <VLAN ID>
+description rmt_mgmt
+ip address <IP> <Subnet>
+shut
+no shut
+exit
+!
+```
+## PER ACCESS
+```
+int <interface>
+desc <desc>
+switchport mode access 
+switchport access vlan <vlan>
+spanning-tree portfast
+spanning-tree bpduguard Enable
+shut
+no shut
+exit
+!
+```
+## Per Trunk
+```
+int <interface>
+desc <Description>
+switchport trunk encapsulation dot1q
+**keep in mind this isnt needed on non-legacy equipment ^ **
+switchport trunk allowed vlan <VLAN ID>,<VLAN ID>
+switchport mode trunk
+no spanning-tree portfast
+shut
+no shut
+exit
+!
+```
+## If auto duplex failure
+```
+conf t
+int <port>
+no negotiation auto
+duplex <half|full|auto>
+exit
+```
+## Port Channels
+```
+int port-channel <ID>
+switchport trunk ecapsulation dot1q
+switchport mode trunk
+switchport trunk allowed vlan <ID,ID>
+exit
+int <INT range>
+switchport trunk ecapsulation dot1q
+switchport mode trunk
+switchport trunk allowed vlan <ID,ID>
+Channel-group <ID> mode <active|passive>
+!
+```

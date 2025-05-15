@@ -1,0 +1,156 @@
+## Basic Configs
+```
+en
+conf t
+hostname <Hostname>
+enable secret <security>
+username <security> secret <security>
+line con 0
+logging synch
+login local
+line vty 0 4 
+logging synch
+login local
+ip routing
+end
+wr mem
+```
+## Loopback configuration
+```
+interface Loopback0
+ip address <IP> <SUBNET>
+shut
+no shut
+exit
+```
+## Per VLAN
+```
+vlan <VLAN ID>
+name <Name>
+exit
+!
+```
+## Per SVI
+```
+interface vlan <VLAN ID>
+description rmt_mgmt
+ip address <IP> <Subnet>
+shut
+no shut
+exit
+!
+```
+## Routed Ports
+```
+int <INTERFACE>
+no switchport
+ip address <IP> <SUBNET>
+Desc <DESCRIPTION>
+Ip nat <inside|outside>
+!if needed!
+shut
+no shut
+exit
+```
+## Per Trunk
+```
+int <interface>
+desc <Description>
+switchport trunk encapsulation dot1q
+**keep in mind this isnt needed on non-legacy equipment ^ **
+switchport trunk allowed vlan <VLAN ID>,<VLAN ID>
+switchport mode trunk
+no spanning-tree portfast
+shut
+no shut
+exit
+!
+```
+## Duplex
+```
+conf t
+int <port>
+duplex <duplex type>
+shut
+no shut
+exit
+```
+## Static IP
+```
+Ip route <destination network address> <subnet mask> <next hop>
+```
+## OSPF Configs
+```
+Router ospf <ID>
+Network <IP> <Inverse subnet> area <ID>
+!one for each subnet or route connected.
+passive-interface default
+no Passive-interface <INT>
+!on origin routers
+Default-information originate
+redistribute <type> (subnets)
+```
+## EIGRP configs
+```
+router eigrp 37
+network <IP> <Inverse subnet>
+!one for each subnet or route connected.
+default-metric 10000 10 255 1 1500
+passive-interface default
+no passive-interface <INT>
+!on origin routers
+redistribute <type> (subnets)
+!one for each type
+```
+## BGP Configs
+```
+router bgp <BGP ID>
+neighbor <ISP/Far Interface IP> remote-as <Far BGP ID>
+neighbor <ISP/Far Interface IP> soft-reconfiguration inbound
+network <Network IP on routed link to ISP> mask <subnet>
+network <internal network summary IP> mask <subnet>
+Match ip address prefix-list ISP_IN <---ALWAYS USE>
+exit
+ip route <internal network summary IP> <Subnet> null0
+!
+```
+## Port Additions for HSRP##
+```
+standby version 2
+standby <ID> Priority <110|90>
+standby <ID> ip <VIP>
+*If active device*
+standby <ID> preempt
+standby <ID> preempt delay <300>
+**CHANGE DFG ON HOST DEVICES**
+```
+## NAT Configs
+```
+ip nat inside source list <acl_inside_number> interface <outside_interface> overload
+ip nat pool <nat_pool_name> <nat_pool_start_address> <nat_pool_end_address> netmask <nat_pool_netmask>
+ip nat outside source list <acl_outside_number> pool <nat_pool_name>
+exit
+!!!NAT INTERFACE Additions!!!
+ip nat <inside|Outside> (outside goes to ISP port, inside goes to everything else unless defined otherwise)
+```
+## ACL Configurations
+```
+access-list <access_list_number> {permit | deny} <ip> <wildcard_mask>
+*Interface additions*
+ip access-group <access_list_number> {in | out}
+
+@@EXAMPLE@@
+ip access-list extended Finance <---- Names and Makes List
+10 permit ip host 10.2.37.220 any <-----permits the host to access whatever it likes
+20 deny ip 10.2.37.197 0.0.0.7 10.2.37.220 0.0.0.7    |
+30 deny ip 10.2.37.209 0.0.0.7 10.2.37.220 0.0.0.7    |
+40 deny ip 10.2.37.225 0.0.0.31 10.2.37.220 0.0.0.7   |<-----Denies traffic to specific VLANS
+50 deny ip 10.2.37.17 0.0.0.7 10.2.37.220 0.0.0.7     |
+60 deny ip 10.2.37.145 0.0.0.7 10.2.37.220 0.0.0.7    |
+permit ip any any <-------permits all all other traffic
+**THIS ONLY WORKS ON OUT INTERFACES**
+```
+## DHCP
+```
+ip helper-address <server IP>
+```
